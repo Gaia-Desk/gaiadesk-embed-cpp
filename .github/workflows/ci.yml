@@ -1,0 +1,55 @@
+name: ci
+
+# Builds against this repository's release archives (downloaded by CMake and
+# checked against the SHA-256s pinned in cmake/FetchGaiaDeskEmbed.cmake), so
+# it needs the release named in CMakeLists.txt's project() VERSION to exist.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Qt 6 (for examples/qt-helpdesk)
+        run: brew install qtbase
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qtbase)"
+      - name: Build
+        run: cmake --build build --parallel
+      # Unit tests, plus the live tests against the real library (refusals
+      # only: no session, no network) and the examples' smoke tests.
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies (the library's runtime libraries, Qt 6)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgbm1 libwayland-client0 libxcb1 qt6-base-dev
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -A x64
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
