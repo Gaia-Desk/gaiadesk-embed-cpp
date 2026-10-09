@@ -1,9 +1,14 @@
 # gaiadesk-embed-cpp
 
-A **"Get help" button for your desktop app**, in C or C++. Your customer clicks it and agrees;
-**your app's window** is shared with **your** support team, who see it in the GaiaDesk console's
-Support page and, if you allow it, guide it: click and type **inside your app only**, while it is in
-front.
+[![CI](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/actions/workflows/ci.yml/badge.svg)](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Gaia-Desk/gaiadesk-embed-cpp)](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/latest)
+[![License: MIT + binary licence](https://img.shields.io/badge/license-MIT%20%2B%20binary%20licence-blue)](#licence)
+
+A **"Get help" button for your desktop app**, in C or C++ (Qt, Win32, Cocoa, GTK): in-app remote
+support and a screen sharing SDK for C++ desktop apps on macOS, Windows and Linux, for customer
+support with optional guided control. Your customer clicks it and agrees; **your app's window** is
+shared with **your** support team, who see it in the GaiaDesk console's Support page and, if you
+allow it, guide it: click and type **inside your app only**, while it is in front.
 
 - The C API of the native library `libgaiadesk_embed` (`gaiadesk_embed.h`), and a **header-only
   C++17 wrapper** (`gaiadesk/embed.hpp`): typed options and events, an RAII session, exceptions or
@@ -35,6 +40,9 @@ FetchContent_MakeAvailable(gaiadesk_embed)
 target_link_libraries(my_app PRIVATE GaiaDesk::embed)
 gaiadesk_embed_deploy(my_app)   # copies the library beside the executable (or into the .app) + RPATH
 ```
+
+The C++ wrapper needs C++17 or later in your target (`set(CMAKE_CXX_STANDARD 17)` or
+`target_compile_features(my_app PRIVATE cxx_std_17)`); the C header needs nothing.
 
 At configure time this downloads the archive for your platform from this repository's release and
 **checks its SHA-256 against the hash pinned in `cmake/FetchGaiaDeskEmbed.cmake`**; a mismatch is a
@@ -335,6 +343,13 @@ hashes in `cmake/FetchGaiaDeskEmbed.cmake`. It refuses headers that differ betwe
 test-source build, a binary of the wrong OS or CPU, and a macOS library that links libvpx or lacks a
 slice. The archives are reproducible. Commit the pinned hashes, tag `v<version>`, and attach
 everything in `dist/` to the GitHub release; CI builds against those assets.
+
+## Links
+
+- Releases: [prebuilt archives for macOS, Windows and Linux](https://github.com/Gaia-Desk/gaiadesk-embed-cpp/releases/latest) (CMake `FetchContent` downloads them for you)
+- Guide: [Embedding GaiaDesk](https://gaiadesk.net/docs/embedding-gaiadesk) on gaiadesk.net
+- Embed SDKs: [Web](https://github.com/Gaia-Desk/gaiadesk-embed) · [Electron](https://github.com/Gaia-Desk/gaiadesk-embed-electron) · [macOS (Swift)](https://github.com/Gaia-Desk/gaiadesk-embed-swift) · [C/C++ and Qt](https://github.com/Gaia-Desk/gaiadesk-embed-cpp) · [.NET](https://github.com/Gaia-Desk/gaiadesk-embed-dotnet) · [iOS](https://github.com/Gaia-Desk/gaiadesk-embed-ios) · [Android](https://github.com/Gaia-Desk/gaiadesk-embed-android) · [React Native](https://github.com/Gaia-Desk/gaiadesk-embed-react-native) · [Flutter](https://github.com/Gaia-Desk/gaiadesk-embed-flutter)
+- [Changelog](CHANGELOG.md) · [Security policy](https://github.com/Gaia-Desk/.github/blob/main/SECURITY.md)
 
 ## Licence
 
