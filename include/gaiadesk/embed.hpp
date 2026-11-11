@@ -49,7 +49,7 @@
 #endif
 
 /// This wrapper's version (the native library has its own: `version()`).
-#define GAIADESK_EMBED_CPP_VERSION "0.1.0"
+#define GAIADESK_EMBED_CPP_VERSION "0.2.0"
 
 namespace gaiadesk::embed {
 
@@ -92,6 +92,12 @@ struct Options {
     /// Your company's name, on the consent dialog and the indicator; empty
     /// means "Support".
     std::string company;
+    /// Your brand colour, `#RRGGBB`, on the indicator (stripe, Stop button);
+    /// empty: the library's own. Needs libgaiadesk_embed 0.2.0.
+    std::string brand_color;
+    /// Your logo, a PNG (at most 256 KiB) as base64, shown small on the
+    /// indicator; empty: none. Needs libgaiadesk_embed 0.2.0.
+    std::string logo_png_base64;
     /// What is shared; default one window of this app.
     Capture capture = Capture::window;
     /// A window of THIS app (CGWindowID on macOS, HWND on Windows, X11
@@ -118,6 +124,8 @@ inline std::string config_json(const Options& o, bool consent_granted) {
     s += consent_granted ? "true" : "false";
     if (!o.server.empty()) s += ",\"server\":" + j::quote(o.server);
     if (!o.company.empty()) s += ",\"company\":" + j::quote(o.company);
+    if (!o.brand_color.empty()) s += ",\"brand_color\":" + j::quote(o.brand_color);
+    if (!o.logo_png_base64.empty()) s += ",\"logo_png_base64\":" + j::quote(o.logo_png_base64);
     s += ",\"capture\":" + j::quote(to_string(o.capture));
     if (o.window_id) s += ",\"window_id\":" + std::to_string(*o.window_id);
     s += ",\"guided\":";
@@ -288,7 +296,7 @@ private:
 
 // ------------------------------------------------------- library, consent --
 
-/// The native library's version ("0.1.0").
+/// The native library's version ("0.2.0").
 inline std::string version() {
     const char* v = gd_embed_version();
     return v ? v : "";
@@ -333,6 +341,47 @@ inline Consent show_consent(const std::string& company, Capture capture = Captur
     switch (gd_embed_show_consent(company.c_str(), to_string(capture), guided ? 1 : 0)) {
         case 1: return Consent::agreed;
         case 0: return Consent::declined;
+        case -2: return Consent::wrong_thread;
+        default: return Consent::no_native_dialog;
+    }
+}
+
+/// The consent dialog in your look: what `show_consent` asks, plus your
+/// colour and logo (the library's `gd_embed_show_consent_ex`, 0.2.0).
+struct ConsentOptions {
+    std::string company;
+    Capture capture = Capture::window;
+    bool guided = false;
+    /// `#RRGGBB`; empty: the platform's own.
+    std::string brand_color;
+    /// A PNG (at most 256 KiB) as base64; empty: none.
+    std::string logo_png_base64;
+};
+
+/// `options` as the JSON `gd_embed_show_consent_ex` takes; empty ones are
+/// left out. Pure.
+inline std::string consent_json(const ConsentOptions& o) {
+    namespace j = detail::json;
+    std::string s = "{\"capture\":" + j::quote(to_string(o.capture));
+    s += ",\"guided\":";
+    s += o.guided ? "true" : "false";
+    if (!o.company.empty()) s += ",\"company\":" + j::quote(o.company);
+    if (!o.brand_color.empty()) s += ",\"brand_color\":" + j::quote(o.brand_color);
+    if (!o.logo_png_base64.empty()) s += ",\"logo_png_base64\":" + j::quote(o.logo_png_base64);
+    return s + '}';
+}
+
+/// The branded consent dialog. A colour or logo the library refuses shows no
+/// dialog: that throws `Error` (`bad_config`) rather than reading as a
+/// decline.
+inline Consent show_consent(const ConsentOptions& o) {
+    switch (gd_embed_show_consent_ex(consent_json(o).c_str())) {
+        case 1: return Consent::agreed;
+        case 0: {
+            ErrorInfo why = last_error();  // thread-local: read it now
+            if (why.code == "bad_config") throw Error(why);
+            return Consent::declined;
+        }
         case -2: return Consent::wrong_thread;
         default: return Consent::no_native_dialog;
     }

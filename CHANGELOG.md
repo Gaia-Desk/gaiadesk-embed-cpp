@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+- `libgaiadesk_embed` 0.2.0: white-label branding. `Options::brand_color` (`#RRGGBB`) and
+  `Options::logo_png_base64` (a PNG, at most 256 KiB) put your colour and logo on the
+  "Sharing with <company>" indicator; `show_consent(ConsentOptions)` (the library's
+  `gd_embed_show_consent_ex`) shows the consent dialog in your look. A colour or logo the library
+  refuses throws `Error` (`bad_config`) instead of reading as a decline.
+- No customer-visible text names GaiaDesk any more (connect errors, the Linux indicator's window
+  class).
+- Release archives rebuilt for macOS (universal), Windows x64 and Linux x86_64.
+
 ## 0.1.0
 
 - `include/gaiadesk/embed.hpp`: a header-only C++17 layer over `libgaiadesk_embed` 0.1.0 —

@@ -21,6 +21,8 @@ allow it, guide it: click and type **inside your app only**, while it is in fron
   unless you opt into `screen`.
 - A visible **"Sharing with Acme · Stop sharing"** indicator, drawn by the library, for as long as
   anything is shared.
+- **Your brand**: your name, colour and logo on the consent dialog and the indicator; nothing your
+  customer sees names GaiaDesk.
 - **Masks**: card numbers, passwords, anything, painted black before a frame is encoded.
 - **View-only by default.** Guided input lands only in your app's own windows, and your customer
   can pause it.
@@ -34,7 +36,7 @@ allow it, guide it: click and type **inside your app only**, while it is in fron
 include(FetchContent)
 FetchContent_Declare(gaiadesk_embed
   GIT_REPOSITORY https://github.com/Gaia-Desk/gaiadesk-embed-cpp.git
-  GIT_TAG v0.1.0)
+  GIT_TAG v0.2.0)
 FetchContent_MakeAvailable(gaiadesk_embed)
 
 target_link_libraries(my_app PRIVATE GaiaDesk::embed)
@@ -213,6 +215,26 @@ asking.
 
 Unknown keys are refused (`bad_config`): there is no switch that turns the indicator or consent
 off. `config_json(options, consent)` shows you exactly what the wrapper sends.
+
+## Branding
+
+Your customer sees your brand, not ours: `company` on the consent dialog and the indicator, plus
+(library 0.2.0) your colour and logo.
+
+```cpp
+ge::ConsentOptions c{"Acme", ge::Capture::window, false, "#0f766e", logo_base64};
+if (ge::show_consent(c) != ge::Consent::agreed) return;  // throws Error("bad_config") on a bad colour or logo
+
+ge::Options o;
+o.embed_token = token;
+o.company = "Acme";
+o.brand_color = "#0f766e";          // #RRGGBB: the indicator's stripe and Stop button
+o.logo_png_base64 = logo_base64;    // a PNG, at most 256 KiB, shown small beside the text
+```
+
+From C: `gd_embed_show_consent_ex("{\"company\":\"Acme\",\"brand_color\":\"#0f766e\"}")` and the same
+`brand_color` / `logo_png_base64` keys in the `gd_embed_start` config. Linux has no native consent
+dialog (`-1`): show your own, in your look.
 
 ## Capture
 

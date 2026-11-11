@@ -111,3 +111,27 @@ TEST(rect_matches_the_c_struct) {
 }
 
 int main() { return check::run_all(); }
+
+TEST(brand_keys_are_written_only_when_set) {
+    ge::Options o;
+    o.embed_token = kToken;
+    o.brand_color = "#0f766e";
+    o.logo_png_base64 = "iVBORw0KGgo=";
+    auto v = j::parse(ge::config_json(o, true));
+    CHECK(v.has_value());
+    CHECK(v->string_at("brand_color").value_or("") == "#0f766e");
+    CHECK(v->string_at("logo_png_base64").value_or("") == "iVBORw0KGgo=");
+    ge::Options plain;
+    plain.embed_token = kToken;
+    CHECK(ge::config_json(plain, true).find("brand_") == std::string::npos);
+}
+
+TEST(consent_options_json) {
+    ge::ConsentOptions c;
+    CHECK_EQ(ge::consent_json(c), "{\"capture\":\"window\",\"guided\":false}");
+    c.company = "Acme";
+    c.capture = ge::Capture::screen;
+    c.guided = true;
+    c.brand_color = "#112233";
+    CHECK_EQ(ge::consent_json(c), "{\"capture\":\"screen\",\"guided\":true,\"company\":\"Acme\",\"brand_color\":\"#112233\"}");
+}

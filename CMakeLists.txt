@@ -7,7 +7,7 @@
 #
 # SPDX-License-Identifier: MIT
 cmake_minimum_required(VERSION 3.18)
-project(GaiaDeskEmbed VERSION 0.1.0 DESCRIPTION "GaiaDesk embed SDK for C and C++" LANGUAGES C CXX)
+project(GaiaDeskEmbed VERSION 0.2.0 DESCRIPTION "GaiaDesk embed SDK for C and C++" LANGUAGES C CXX)
 
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   set(_gd_top ON)
