@@ -36,10 +36,10 @@ static std::string refusal(const ge::Options& o, bool consent) {
 }
 
 TEST(library_version_and_build) {
-    CHECK_EQ(ge::version(), std::string("0.3.0"));
+    CHECK_EQ(ge::version(), std::string("0.3.1"));
     ge::BuildInfo b = ge::build_info();
     CHECK(!b.json.empty());
-    CHECK_EQ(b.version, std::string("0.3.0"));
+    CHECK_EQ(b.version, std::string("0.3.1"));
     CHECK(!b.test_source);  // a test-source build must never ship
     CHECK(!b.codec.empty());
 #if defined(__APPLE__)

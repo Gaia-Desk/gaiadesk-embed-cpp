@@ -50,7 +50,7 @@ int main(void) {
     none.on_event = NULL;
     none.user_data = NULL;
 
-    CHECK(strcmp(gd_embed_version(), "0.3.0") == 0);
+    CHECK(strcmp(gd_embed_version(), "0.3.1") == 0);
     CHECK(strstr(gd_embed_build_info(), "\"test_source\":false") != NULL);
 
     CHECK(refused_with("{\"embed_token\":\"" TOKEN "\",\"consent_granted\":false}", "consent_required"));

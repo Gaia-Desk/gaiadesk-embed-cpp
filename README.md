@@ -36,7 +36,7 @@ allow it, guide it: click and type **inside your app only**, while it is in fron
 include(FetchContent)
 FetchContent_Declare(gaiadesk_embed
   GIT_REPOSITORY https://github.com/Gaia-Desk/gaiadesk-embed-cpp.git
-  GIT_TAG v0.3.0)
+  GIT_TAG v0.3.1)
 FetchContent_MakeAvailable(gaiadesk_embed)
 
 target_link_libraries(my_app PRIVATE GaiaDesk::embed)
@@ -57,7 +57,7 @@ Prefer not to fetch the whole repository? Copy `cmake/FetchGaiaDeskEmbed.cmake` 
 ```cmake
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(FetchGaiaDeskEmbed)
-gaiadesk_embed_fetch()          # or gaiadesk_embed_fetch(VERSION 0.3.0 SHA256 <hex>)
+gaiadesk_embed_fetch()          # or gaiadesk_embed_fetch(VERSION 0.3.1 SHA256 <hex>)
 target_link_libraries(my_app PRIVATE GaiaDesk::embed)
 gaiadesk_embed_deploy(my_app)
 ```

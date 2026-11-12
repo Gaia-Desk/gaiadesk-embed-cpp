@@ -50,7 +50,7 @@
 #endif
 
 /// This wrapper's version (the native library has its own: `version()`).
-#define GAIADESK_EMBED_CPP_VERSION "0.3.0"
+#define GAIADESK_EMBED_CPP_VERSION "0.3.1"
 
 namespace gaiadesk::embed {
 
