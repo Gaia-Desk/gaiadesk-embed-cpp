@@ -22,11 +22,11 @@
 # SPDX-License-Identifier: MIT
 include_guard(GLOBAL)
 
-set(GAIADESK_EMBED_PINNED_VERSION "0.2.0")
+set(GAIADESK_EMBED_PINNED_VERSION "0.3.0")
 # BEGIN PINNED HASHES (scripts/package-release.sh rewrites this block)
-set(GAIADESK_EMBED_SHA256_gaiadesk_embed-macos-universal.tar.gz "ed4069cac081c86769dc74bf7ee5d81c2fb518d93f497372d5ab146e30b0cada")
-set(GAIADESK_EMBED_SHA256_gaiadesk_embed-linux-x64.tar.gz "e422a3a8355f5b9cae8abf74b546e147a7459ecb4412750134257425ed0c356c")
-set(GAIADESK_EMBED_SHA256_gaiadesk_embed-win-x64.zip "0f6560d3695f5b40b3305a135ef694f2a356fe4fefd9befddca58529c503f26c")
+set(GAIADESK_EMBED_SHA256_gaiadesk_embed-macos-universal.tar.gz "c1a4b9490cd2c64ee55d76dfed35203d68bd9175f7c1ce343d73f09705afe051")
+set(GAIADESK_EMBED_SHA256_gaiadesk_embed-linux-x64.tar.gz "4459da146397b813b42c7fe2ee6b21f7dcb9d962b76c61a7675d8677f8188515")
+set(GAIADESK_EMBED_SHA256_gaiadesk_embed-win-x64.zip "4d6c926fc5b7a8dc4059ea0cbc60fae4bfa6df3e74b93b088a3a6f8021559fae")
 # END PINNED HASHES
 
 # The archive name for the platform being built for.
