@@ -36,7 +36,7 @@ allow it, guide it: click and type **inside your app only**, while it is in fron
 include(FetchContent)
 FetchContent_Declare(gaiadesk_embed
   GIT_REPOSITORY https://github.com/Gaia-Desk/gaiadesk-embed-cpp.git
-  GIT_TAG v0.2.0)
+  GIT_TAG v0.3.0)
 FetchContent_MakeAvailable(gaiadesk_embed)
 
 target_link_libraries(my_app PRIVATE GaiaDesk::embed)
@@ -57,7 +57,7 @@ Prefer not to fetch the whole repository? Copy `cmake/FetchGaiaDeskEmbed.cmake` 
 ```cmake
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(FetchGaiaDeskEmbed)
-gaiadesk_embed_fetch()          # or gaiadesk_embed_fetch(VERSION 0.2.0 SHA256 <hex>)
+gaiadesk_embed_fetch()          # or gaiadesk_embed_fetch(VERSION 0.3.0 SHA256 <hex>)
 target_link_libraries(my_app PRIVATE GaiaDesk::embed)
 gaiadesk_embed_deploy(my_app)
 ```
@@ -212,6 +212,10 @@ asking.
 | `guided` | `guided` | Allow guided input (default `false`). See Guided mode. |
 | `fps` | `fps` | 1 to 30 (default 15). |
 | `masks` | `masks` | `[{x,y,w,h}]`, painted out from the first frame. See Masking. |
+| `brand_color`, `logo_png_base64` | same | Your colour and logo (0.2.0). See Branding. |
+| `parent_window` | `parent_window` | The calling window, NSWindow* / HWND (as an integer in C); default its focused window (0.3.0). See The indicator. |
+| `indicator_position` | `indicator_position` | `top-left`, `top-right` (default), `bottom-left`, `bottom-right` (0.3.0). |
+| `indicator_origin` | `indicator_origin` | `{x,y}` from an `indicator_moved` event you kept (0.3.0). |
 
 Unknown keys are refused (`bad_config`): there is no switch that turns the indicator or consent
 off. `config_json(options, consent)` shows you exactly what the wrapper sends.
@@ -235,6 +239,29 @@ o.logo_png_base64 = logo_base64;    // a PNG, at most 256 KiB, shown small besid
 From C: `gd_embed_show_consent_ex("{\"company\":\"Acme\",\"brand_color\":\"#0f766e\"}")` and the same
 `brand_color` / `logo_png_base64` keys in the `gd_embed_start` config. Linux has no native consent
 dialog (`-1`): show your own, in your look.
+
+## The indicator
+
+Library 0.3.0 places the consent dialog and the indicator by the window that asked for help.
+
+```cpp
+void* win = reinterpret_cast<void*>(widget->window()->winId());  // HWND; on macOS an NSView*, so:
+// win = ge::macos::nswindow_of_nsview(win);   (gaiadesk/embed_macos.hpp)
+
+ge::ConsentOptions c{"Acme"};
+c.masked = true;          // the dialog says private fields stay hidden (you pass masks)
+c.parent_window = win;    // a sheet on it (macOS) / owned by it (Windows), never behind it
+
+ge::Options o;
+o.parent_window = win;                                     // the indicator keeps clear of it
+o.indicator_position = ge::IndicatorPosition::bottom_right;
+if (saved) o.indicator_origin = ge::Point{saved->x, saved->y};  // where the customer left it
+```
+
+When the customer drags the indicator you get `IndicatorMovedEvent{x, y}`: keep it (the library
+writes nothing to disk) and pass it back as `indicator_origin` next time; it is used while it still
+fits on a screen. Cancel on the indicator before an agent is admitted ends the session with
+`customer_cancelled`, and the request leaves your support queue at once.
 
 ## Capture
 
@@ -295,7 +322,8 @@ deliver input to one app only.
 | `ControlEvent{allowed}` | `{"type":"control","allowed":…}` | Guided input paused (`false`) or allowed again |
 | `ActionEvent{action, applied, reason}` | `{"type":"action",…}` | A guided request and its outcome |
 | `ErrorEvent{code, message}` | `{"type":"error",…}` | e.g. `capture_failed`, `connect_failed`, `indicator_unavailable` |
-| `EndedEvent{reason}` | `{"type":"ended","reason":…}` | `stopped` (the customer), `app_stopped`, `disconnected`, `expired`, `error`. **Always last, exactly once** |
+| `IndicatorMovedEvent{x, y}` | `{"type":"indicator_moved","x":…,"y":…}` | The customer dragged the indicator: keep it for `indicator_origin` (0.3.0) |
+| `EndedEvent{reason}` | `{"type":"ended","reason":…}` | `stopped` (the customer), `app_stopped`, `customer_cancelled` (cancelled before an agent was admitted, 0.3.0), `disconnected`, `expired`, `error`. **Always last, exactly once** |
 | `UnknownEvent{type, json}` | | A type newer than this wrapper |
 
 `parse_event(json)` turns the C callback's JSON into an `Event`; `type_of(e)` gives its type name.

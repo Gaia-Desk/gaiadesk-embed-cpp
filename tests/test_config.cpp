@@ -135,3 +135,36 @@ TEST(consent_options_json) {
     c.brand_color = "#112233";
     CHECK_EQ(ge::consent_json(c), "{\"capture\":\"screen\",\"guided\":true,\"company\":\"Acme\",\"brand_color\":\"#112233\"}");
 }
+
+TEST(placement_keys_are_written_only_when_set) {
+    ge::Options o;
+    o.embed_token = kToken;
+    o.parent_window = reinterpret_cast<void*>(std::uintptr_t{140230000});
+    o.indicator_position = ge::IndicatorPosition::bottom_left;
+    o.indicator_origin = ge::Point{10.5, -20};
+    auto v = j::parse(ge::config_json(o, true));
+    CHECK(v.has_value());
+    CHECK_EQ(v->int64_at("parent_window").value_or(0), 140230000);
+    CHECK(v->string_at("indicator_position").value_or("") == "bottom-left");
+    const j::Value* origin = v->find("indicator_origin");
+    CHECK(origin != nullptr && origin->is_object());
+    if (origin) CHECK(origin->double_at("x") == 10.5 && origin->double_at("y") == -20.0);
+    ge::Options plain;
+    plain.embed_token = kToken;
+    std::string p = ge::config_json(plain, true);
+    CHECK(p.find("parent_window") == std::string::npos && p.find("indicator_") == std::string::npos);
+}
+
+TEST(every_indicator_position_has_its_name) {
+    CHECK_EQ(std::string(ge::to_string(ge::IndicatorPosition::top_left)), std::string("top-left"));
+    CHECK_EQ(std::string(ge::to_string(ge::IndicatorPosition::top_right)), std::string("top-right"));
+    CHECK_EQ(std::string(ge::to_string(ge::IndicatorPosition::bottom_left)), std::string("bottom-left"));
+    CHECK_EQ(std::string(ge::to_string(ge::IndicatorPosition::bottom_right)), std::string("bottom-right"));
+}
+
+TEST(consent_masked_and_parent_window) {
+    ge::ConsentOptions c;
+    c.masked = true;
+    c.parent_window = reinterpret_cast<void*>(std::uintptr_t{42});
+    CHECK_EQ(ge::consent_json(c), "{\"capture\":\"window\",\"guided\":false,\"masked\":true,\"parent_window\":42}");
+}

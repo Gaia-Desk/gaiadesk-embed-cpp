@@ -72,6 +72,14 @@ TEST(error_and_ended) {
     CHECK_EQ(ge::type_of(ge::Event{ge::EndedEvent{"stopped"}}), std::string_view("ended"));
 }
 
+TEST(indicator_moved_and_customer_cancelled) {
+    auto m = as<ge::IndicatorMovedEvent>(ge::parse_event(R"({"type":"indicator_moved","x":1180.5,"y":-24})"));
+    CHECK(m && m->x == 1180.5 && m->y == -24.0);
+    CHECK_EQ(ge::type_of(ge::Event{ge::IndicatorMovedEvent{1, 2}}), std::string_view("indicator_moved"));
+    auto end = as<ge::EndedEvent>(ge::parse_event(R"({"type":"ended","reason":"customer_cancelled"})"));
+    CHECK(end && end->reason == "customer_cancelled");
+}
+
 TEST(unknown_types_keep_their_json) {
     const char* raw = R"({"type":"highlight","x":1})";
     auto u = as<ge::UnknownEvent>(ge::parse_event(raw));

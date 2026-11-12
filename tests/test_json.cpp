@@ -37,6 +37,17 @@ TEST(reads_escapes_and_unicode) {
     CHECK_EQ(u->string_at("agent").value_or("?"), std::string("z\xC3\xBC\x72ich@acme.com"));
 }
 
+TEST(double_at_reads_any_number) {
+    auto v = j::parse(R"({"a":10.5,"b":-20,"c":1e3,"s":"1","big":1e400})");
+    CHECK(v.has_value());
+    CHECK(v->double_at("a") == 10.5);
+    CHECK(v->double_at("b") == -20.0);
+    CHECK(v->double_at("c") == 1000.0);
+    CHECK(!v->double_at("s").has_value());
+    CHECK(!v->double_at("big").has_value());
+    CHECK(!v->double_at("missing").has_value());
+}
+
 TEST(int64_only_for_exact_integers) {
     auto v = j::parse(R"({"a":1767225600,"b":1.5,"c":1e3,"d":99999999999999999999,"e":-0})");
     CHECK(v.has_value());
@@ -108,6 +119,7 @@ TEST(writes_numbers_shortest_and_locale_free) {
     std::setlocale(LC_ALL, "de_DE.UTF-8");
     CHECK_EQ(j::number(1.5), std::string("1.5"));
     CHECK_EQ(j::number(1234567.25), std::string("1234567.25"));
+    CHECK(j::parse(R"({"x":1.5})")->double_at("x") == 1.5);  // and reads none in
     std::locale::global(old);
     std::setlocale(LC_ALL, "C");
 }

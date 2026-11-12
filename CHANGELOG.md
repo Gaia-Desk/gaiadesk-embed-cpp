@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0
+
+- `libgaiadesk_embed` 0.3.0: the consent dialog and indicator belong to the calling window.
+  `Options::parent_window` / `ConsentOptions::parent_window` (NSWindow* / HWND; macOS:
+  `macos::nswindow_of_nsview`), `Options::indicator_position` (`IndicatorPosition`) and
+  `Options::indicator_origin` (a `Point`), `ConsentOptions::masked`.
+- New event `IndicatorMovedEvent{x, y}` (keep it, pass it back as `indicator_origin`); new ended
+  reason `customer_cancelled` (Cancel before an agent was admitted).
+- The event types moved to `gaiadesk/embed_events.hpp`, still included by `gaiadesk/embed.hpp`.
+  `Event` gained an alternative: an exhaustive `std::visit` needs an `IndicatorMovedEvent` case.
+
 ## 0.2.0
 
 - `libgaiadesk_embed` 0.2.0: white-label branding. `Options::brand_color` (`#RRGGBB`) and

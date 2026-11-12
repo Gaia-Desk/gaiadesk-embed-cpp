@@ -41,6 +41,7 @@
 #include <vector>
 
 #include "detail/json.hpp"
+#include "embed_events.hpp"
 
 #if defined(__cpp_exceptions) || defined(_CPPUNWIND) || defined(__EXCEPTIONS)
 #define GAIADESK_EMBED_EXCEPTIONS 1
@@ -49,7 +50,7 @@
 #endif
 
 /// This wrapper's version (the native library has its own: `version()`).
-#define GAIADESK_EMBED_CPP_VERSION "0.2.0"
+#define GAIADESK_EMBED_CPP_VERSION "0.3.0"
 
 namespace gaiadesk::embed {
 
@@ -82,6 +83,25 @@ struct Rect {
     double h = 0;
 };
 
+/// The screen corner the indicator starts in.
+enum class IndicatorPosition { top_left, top_right, bottom_left, bottom_right };
+
+inline const char* to_string(IndicatorPosition p) noexcept {
+    switch (p) {
+        case IndicatorPosition::top_left: return "top-left";
+        case IndicatorPosition::bottom_left: return "bottom-left";
+        case IndicatorPosition::bottom_right: return "bottom-right";
+        case IndicatorPosition::top_right: break;
+    }
+    return "top-right";
+}
+
+/// A point on screen, as an `IndicatorMovedEvent` reports it.
+struct Point {
+    double x = 0;
+    double y = 0;
+};
+
 /// How a support session starts. Only `embed_token` is required.
 struct Options {
     /// `gdemb_…`, from your backend (`POST /v1/support/sessions`).
@@ -98,6 +118,18 @@ struct Options {
     /// Your logo, a PNG (at most 256 KiB) as base64, shown small on the
     /// indicator; empty: none. Needs libgaiadesk_embed 0.2.0.
     std::string logo_png_base64;
+    /// The calling window: NSWindow* on macOS (embed_macos.hpp's
+    /// `nswindow_of_nsview` from a Qt winId()), HWND on Windows. The
+    /// indicator keeps clear of it; ignored unless it is this app's;
+    /// nullptr: the app's focused window. Needs libgaiadesk_embed 0.3.0.
+    void* parent_window = nullptr;
+    /// The corner the indicator starts in; default (nullopt) top right,
+    /// clear of the calling window. Needs libgaiadesk_embed 0.3.0.
+    std::optional<IndicatorPosition> indicator_position;
+    /// Where the customer last dragged the indicator (an
+    /// `IndicatorMovedEvent` you kept): restored while it fits on a screen.
+    /// The library writes nothing to disk. Needs libgaiadesk_embed 0.3.0.
+    std::optional<Point> indicator_origin;
     /// What is shared; default one window of this app.
     Capture capture = Capture::window;
     /// A window of THIS app (CGWindowID on macOS, HWND on Windows, X11
@@ -126,6 +158,12 @@ inline std::string config_json(const Options& o, bool consent_granted) {
     if (!o.company.empty()) s += ",\"company\":" + j::quote(o.company);
     if (!o.brand_color.empty()) s += ",\"brand_color\":" + j::quote(o.brand_color);
     if (!o.logo_png_base64.empty()) s += ",\"logo_png_base64\":" + j::quote(o.logo_png_base64);
+    if (o.parent_window)
+        s += ",\"parent_window\":" + std::to_string(reinterpret_cast<std::uintptr_t>(o.parent_window));
+    if (o.indicator_position) s += ",\"indicator_position\":" + j::quote(to_string(*o.indicator_position));
+    if (o.indicator_origin)
+        s += ",\"indicator_origin\":{\"x\":" + j::number(o.indicator_origin->x) + ",\"y\":" +
+             j::number(o.indicator_origin->y) + '}';
     s += ",\"capture\":" + j::quote(to_string(o.capture));
     if (o.window_id) s += ",\"window_id\":" + std::to_string(*o.window_id);
     s += ",\"guided\":";
@@ -143,93 +181,6 @@ inline std::string config_json(const Options& o, bool consent_granted) {
     }
     s += '}';
     return s;
-}
-
-// ----------------------------------------------------------------- events --
-
-/// `starting`, `waiting` (registered, no agent yet), `connected`, `ended`.
-struct StateEvent {
-    std::string state;
-};
-/// The session is up: `code` is the nine-digit support code your customer
-/// reads to the agent; `mode` is `view` or `cobrowse` (your backend's choice).
-struct CodeEvent {
-    std::string code;
-    std::string session_id;
-    std::string mode;
-    std::optional<std::int64_t> expires_at;  ///< Unix seconds.
-};
-/// An agent joined (their email, when known).
-struct JoinedEvent {
-    std::optional<std::string> agent;
-};
-/// The agent left.
-struct LeftEvent {};
-/// Whether guided input is allowed right now (paused / resumed).
-struct ControlEvent {
-    bool allowed = false;
-};
-/// A guided request and what became of it. `reason` when not applied:
-/// `view_only`, `control_paused`, `rate_limited`, `not_focused`,
-/// `outside_app`, `masked`, `unsupported`, …
-struct ActionEvent {
-    std::string action;
-    bool applied = false;
-    std::optional<std::string> reason;
-};
-/// A problem during the session (`capture_failed`, `connect_failed`, …).
-struct ErrorEvent {
-    std::string code;
-    std::string message;
-};
-/// Always the last event, exactly once: `stopped` (the customer),
-/// `app_stopped`, `disconnected`, `expired`, `error`.
-struct EndedEvent {
-    std::string reason;
-};
-/// An event type newer than this wrapper: its `type` and the raw JSON.
-struct UnknownEvent {
-    std::string type;
-    std::string json;
-};
-
-using Event = std::variant<StateEvent, CodeEvent, JoinedEvent, LeftEvent, ControlEvent, ActionEvent, ErrorEvent,
-                           EndedEvent, UnknownEvent>;
-
-/// One event's JSON as an `Event`; nullopt for JSON that is not an event
-/// object. Unknown types become `UnknownEvent`. Pure.
-inline std::optional<Event> parse_event(std::string_view json) {
-    auto doc = detail::json::parse(json);
-    if (!doc || !doc->is_object()) return std::nullopt;
-    auto type = doc->string_at("type");
-    if (!type) return std::nullopt;
-    const auto& o = *doc;
-    auto str = [&](std::string_view k) { return o.string_at(k).value_or(std::string()); };
-    if (*type == "state") return Event{StateEvent{str("state")}};
-    if (*type == "code")
-        return Event{CodeEvent{str("code"), str("session_id"), o.string_at("mode").value_or("view"), o.int64_at("expires_at")}};
-    if (*type == "joined") return Event{JoinedEvent{o.string_at("agent")}};
-    if (*type == "left") return Event{LeftEvent{}};
-    if (*type == "control") return Event{ControlEvent{o.true_at("allowed")}};
-    if (*type == "action") return Event{ActionEvent{str("action"), o.true_at("applied"), o.string_at("reason")}};
-    if (*type == "error") return Event{ErrorEvent{str("code"), str("message")}};
-    if (*type == "ended") return Event{EndedEvent{str("reason")}};
-    return Event{UnknownEvent{*type, std::string(json)}};
-}
-
-/// The event's `type` as the library sent it ("state", "code", …).
-inline std::string_view type_of(const Event& e) noexcept {
-    switch (e.index()) {
-        case 0: return "state";
-        case 1: return "code";
-        case 2: return "joined";
-        case 3: return "left";
-        case 4: return "control";
-        case 5: return "action";
-        case 6: return "error";
-        case 7: return "ended";
-        default: return std::get_if<UnknownEvent>(&e) ? std::string_view(std::get<UnknownEvent>(e).type) : "";
-    }
 }
 
 // ----------------------------------------------------------------- errors --
@@ -296,7 +247,7 @@ private:
 
 // ------------------------------------------------------- library, consent --
 
-/// The native library's version ("0.2.0").
+/// The native library's version ("0.3.0").
 inline std::string version() {
     const char* v = gd_embed_version();
     return v ? v : "";
@@ -334,7 +285,8 @@ enum class Consent {
     wrong_thread,      ///< macOS: call it on the main thread.
 };
 
-/// The library's consent dialog (modal; call it on your UI / main thread).
+/// The library's consent dialog (modal, on the app's focused window; call it
+/// on your UI / main thread).
 /// Pass the same `capture` and `guided` you will start with, so it tells
 /// your user what they agree to.
 inline Consent show_consent(const std::string& company, Capture capture = Capture::window, bool guided = false) {
@@ -347,15 +299,23 @@ inline Consent show_consent(const std::string& company, Capture capture = Captur
 }
 
 /// The consent dialog in your look: what `show_consent` asks, plus your
-/// colour and logo (the library's `gd_embed_show_consent_ex`, 0.2.0).
+/// colour and logo (the library's `gd_embed_show_consent_ex`, 0.2.0), and
+/// (0.3.0) the masked line and the window it belongs to.
 struct ConsentOptions {
     std::string company;
     Capture capture = Capture::window;
     bool guided = false;
     /// `#RRGGBB`; empty: the platform's own.
     std::string brand_color;
-    /// A PNG (at most 256 KiB) as base64; empty: none.
+    /// A PNG (at most 256 KiB) as base64, shown large; empty: the app icon.
     std::string logo_png_base64;
+    /// Say private fields stay hidden (you pass masks). Needs
+    /// libgaiadesk_embed 0.3.0.
+    bool masked = false;
+    /// The calling window (NSWindow* / HWND): the dialog is a sheet on it
+    /// (macOS) or owned by it (Windows), never behind it; nullptr: the app's
+    /// focused window. Needs libgaiadesk_embed 0.3.0.
+    void* parent_window = nullptr;
 };
 
 /// `options` as the JSON `gd_embed_show_consent_ex` takes; empty ones are
@@ -368,6 +328,9 @@ inline std::string consent_json(const ConsentOptions& o) {
     if (!o.company.empty()) s += ",\"company\":" + j::quote(o.company);
     if (!o.brand_color.empty()) s += ",\"brand_color\":" + j::quote(o.brand_color);
     if (!o.logo_png_base64.empty()) s += ",\"logo_png_base64\":" + j::quote(o.logo_png_base64);
+    if (o.masked) s += ",\"masked\":true";
+    if (o.parent_window)
+        s += ",\"parent_window\":" + std::to_string(reinterpret_cast<std::uintptr_t>(o.parent_window));
     return s + '}';
 }
 

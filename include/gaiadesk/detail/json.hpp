@@ -29,8 +29,8 @@
 
 namespace gaiadesk::embed::detail::json {
 
-/// One JSON value. Numbers keep their text: the wrapper only ever reads
-/// integers from them (`expires_at`), which `as_int64` parses exactly.
+/// One JSON value. Numbers keep their text: `int64_at` parses integers
+/// exactly (`expires_at`), `double_at` any number (indicator coordinates).
 struct Value {
     enum class Kind { null, boolean, number, string, array, object };
     Kind kind = Kind::null;
@@ -70,6 +70,18 @@ struct Value {
         const char* e = b + v->text.size();
         auto r = std::from_chars(b, e, out);
         if (r.ec != std::errc() || r.ptr != e) return std::nullopt;  // fractional, exponent, overflow
+        return out;
+    }
+
+    /// A number as a double, read in the classic locale; nullopt when it is
+    /// not a number or out of range.
+    std::optional<double> double_at(std::string_view key) const {
+        const Value* v = find(key);
+        if (v == nullptr || v->kind != Kind::number) return std::nullopt;
+        std::istringstream r(v->text);
+        r.imbue(std::locale::classic());
+        double out = 0;
+        if (!(r >> out) || !std::isfinite(out)) return std::nullopt;
         return out;
     }
 };
