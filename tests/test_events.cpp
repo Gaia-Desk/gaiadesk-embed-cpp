@@ -80,6 +80,28 @@ TEST(indicator_moved_and_customer_cancelled) {
     CHECK(end && end->reason == "customer_cancelled");
 }
 
+TEST(consent_events_and_endings) {
+    auto shown = as<ge::ConsentShownEvent>(ge::parse_event(R"({"type":"consent_shown","locale":"fr","wording_version":"v1"})"));
+    CHECK(shown && shown->locale == "fr" && shown->wording_version == "v1");
+    auto ok = as<ge::ConsentAcceptedEvent>(
+        ge::parse_event(R"({"type":"consent_accepted","choices":{"guided":true,"share_logs":false,"capture":"screen"}})"));
+    CHECK(ok && ok->choices.guided && !ok->choices.share_logs && ok->choices.capture == ge::Capture::screen);
+    auto no = as<ge::ConsentDeclinedEvent>(ge::parse_event(R"({"type":"consent_declined","reason":"timeout"})"));
+    CHECK(no && no->reason == "timeout");
+    CHECK_EQ(ge::type_of(ge::Event{ge::ConsentShownEvent{}}), std::string_view("consent_shown"));
+    CHECK_EQ(ge::type_of(ge::Event{ge::ConsentAcceptedEvent{}}), std::string_view("consent_accepted"));
+    CHECK_EQ(ge::type_of(ge::Event{ge::ConsentDeclinedEvent{}}), std::string_view("consent_declined"));
+    for (const char* r : {"customer_declined", "consent_timeout"}) {
+        auto end = as<ge::EndedEvent>(ge::parse_event(std::string(R"({"type":"ended","reason":")") + r + "\"}"));
+        CHECK(end && end->reason == r);
+    }
+    auto w = as<ge::StateEvent>(
+        ge::parse_event(R"({"type":"state","state":"waiting","choices":{"guided":false,"share_logs":true,"capture":"window"}})"));
+    CHECK(w && w->state == "waiting" && w->choices && w->choices->share_logs);
+    auto plain = as<ge::StateEvent>(ge::parse_event(R"({"type":"state","state":"waiting"})"));
+    CHECK(plain && !plain->choices);
+}
+
 TEST(unknown_types_keep_their_json) {
     const char* raw = R"({"type":"highlight","x":1})";
     auto u = as<ge::UnknownEvent>(ge::parse_event(raw));

@@ -50,27 +50,11 @@
 #endif
 
 /// This wrapper's version (the native library has its own: `version()`).
-#define GAIADESK_EMBED_CPP_VERSION "0.3.1"
+#define GAIADESK_EMBED_CPP_VERSION "0.4.0"
 
 namespace gaiadesk::embed {
 
 // ---------------------------------------------------------------- options --
-
-/// What is shared.
-enum class Capture {
-    window,  ///< One window of this app (the default).
-    app,     ///< Every window of this app (macOS; elsewhere its focused window, followed).
-    screen,  ///< The whole display this app's window is on. Opt-in.
-};
-
-inline const char* to_string(Capture c) noexcept {
-    switch (c) {
-        case Capture::app: return "app";
-        case Capture::screen: return "screen";
-        case Capture::window: break;
-    }
-    return "window";
-}
 
 /// A masked region, relative to the top-left corner of the shared window's
 /// frame: points on macOS (title bar included), `GetWindowRect` units on
@@ -144,6 +128,10 @@ struct Options {
     /// already know here: an agent can join straight away, and only
     /// start-time masks are guaranteed to cover the first frame.
     std::vector<Rect> masks;
+    /// The consent step's token and receipt (`ConsentDecision`), sent with
+    /// the join; `Session::start` with a decision sets both. 0.4.0.
+    std::string consent_token;
+    std::optional<ConsentReceipt> consent_receipt;
 };
 
 /// The library's config JSON for `options`. Keys are exactly the ones it
@@ -179,8 +167,22 @@ inline std::string config_json(const Options& o, bool consent_granted) {
         }
         s += ']';
     }
+    if (!o.consent_token.empty()) s += ",\"consent_token\":" + j::quote(o.consent_token);
+    if (o.consent_receipt) s += ",\"consent_receipt\":" + o.consent_receipt->json;
     s += '}';
     return s;
+}
+
+/// `options` as `Session::start` with a decision starts it: its token and
+/// receipt, the customer's capture, `guided` only if they allowed it. Pure.
+inline Options apply_consent(Options options, const ConsentDecision& d) {
+    options.consent_token = d.consent_token;
+    options.consent_receipt = d.receipt;
+    if (d.choices) {
+        options.capture = d.choices->capture;
+        options.guided = options.guided && d.choices->guided;
+    }
+    return options;
 }
 
 // ----------------------------------------------------------------- errors --
@@ -247,7 +249,7 @@ private:
 
 // ------------------------------------------------------- library, consent --
 
-/// The native library's version ("0.3.0").
+/// The native library's version ("0.4.0").
 inline std::string version() {
     const char* v = gd_embed_version();
     return v ? v : "";
@@ -418,10 +420,24 @@ public:
         return Result<Session>(std::move(s));
     }
 
+    /// Start after the consent step (`consent` / `record_consent`, 0.4.0):
+    /// `apply_consent(options, consent)`. Anything but an acceptance is
+    /// refused (`consent_required`).
+    static Result<Session> try_start(const Options& options, const ConsentDecision& consent, EventHandler on_event,
+                                     Post post = {}) {
+        return try_start(apply_consent(options, consent), consent.accepted(), std::move(on_event), std::move(post));
+    }
+
 #if GAIADESK_EMBED_EXCEPTIONS
     /// `try_start`, throwing `Error` on a refusal.
     static Session start(const Options& options, bool consent_granted, EventHandler on_event, Post post = {}) {
         auto r = try_start(options, consent_granted, std::move(on_event), std::move(post));
+        if (!r) throw Error(r.error());
+        return std::move(r).value();
+    }
+    /// `try_start` after the consent step, throwing `Error` on a refusal.
+    static Session start(const Options& options, const ConsentDecision& consent, EventHandler on_event, Post post = {}) {
+        auto r = try_start(options, consent, std::move(on_event), std::move(post));
         if (!r) throw Error(r.error());
         return std::move(r).value();
     }
@@ -549,5 +565,7 @@ private:
 };
 
 }  // namespace gaiadesk::embed
+
+#include "embed_consent.hpp"
 
 #endif  // GAIADESK_EMBED_HPP

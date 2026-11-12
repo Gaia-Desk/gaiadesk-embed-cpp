@@ -25,6 +25,7 @@ endfunction()
 gd_test(test_json LABEL unit SOURCES test_json.cpp)
 gd_test(test_config LABEL unit SOURCES test_config.cpp)
 gd_test(test_events LABEL unit SOURCES test_events.cpp)
+gd_test(test_consent LABEL unit SOURCES test_consent.cpp)
 gd_test(test_platform LABEL unit SOURCES test_platform.cpp)
 # Against the real library (refusals only; no session, no network).
 gd_test(test_live LABEL live SOURCES test_live.cpp)

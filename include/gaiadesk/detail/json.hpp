@@ -330,6 +330,26 @@ inline std::string quote(std::string_view s) {
     return out;
 }
 
+/// `v` as JSON text again (numbers as they were read). Pure.
+inline std::string dump(const Value& v) {
+    switch (v.kind) {
+        case Value::Kind::null: return "null";
+        case Value::Kind::boolean: return v.boolean ? "true" : "false";
+        case Value::Kind::number: return v.text;
+        case Value::Kind::string: return quote(v.text);
+        case Value::Kind::array: {
+            std::string s = "[";
+            for (std::size_t k = 0; k < v.items.size(); ++k) s += (k ? "," : "") + dump(v.items[k]);
+            return s + ']';
+        }
+        case Value::Kind::object: break;
+    }
+    std::string s = "{";
+    for (std::size_t k = 0; k < v.members.size(); ++k)
+        s += (k ? "," : "") + quote(v.members[k].first) + ':' + dump(v.members[k].second);
+    return s + '}';
+}
+
 /// A double as the shortest JSON number that reads back as the same value
 /// ("10", "12.5"). JSON has no NaN or infinity: those become `null`, which
 /// the library refuses (`bad_config`) rather than guess a size.

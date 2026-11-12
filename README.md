@@ -36,7 +36,7 @@ allow it, guide it: click and type **inside your app only**, while it is in fron
 include(FetchContent)
 FetchContent_Declare(gaiadesk_embed
   GIT_REPOSITORY https://github.com/Gaia-Desk/gaiadesk-embed-cpp.git
-  GIT_TAG v0.3.1)
+  GIT_TAG v0.4.0)
 FetchContent_MakeAvailable(gaiadesk_embed)
 
 target_link_libraries(my_app PRIVATE GaiaDesk::embed)
@@ -57,7 +57,7 @@ Prefer not to fetch the whole repository? Copy `cmake/FetchGaiaDeskEmbed.cmake` 
 ```cmake
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(FetchGaiaDeskEmbed)
-gaiadesk_embed_fetch()          # or gaiadesk_embed_fetch(VERSION 0.3.1 SHA256 <hex>)
+gaiadesk_embed_fetch()          # or gaiadesk_embed_fetch(VERSION 0.4.0 SHA256 <hex>)
 target_link_libraries(my_app PRIVATE GaiaDesk::embed)
 gaiadesk_embed_deploy(my_app)
 ```
@@ -125,19 +125,24 @@ namespace ge = gaiadesk::embed;
 ge::Session help;   // a member of your window: ending it (or destroying it) stops sharing
 
 void MyWindow::getHelp(const std::string& token) {
-    // 1. Ask. The library's dialog (macOS, Windows; on the UI thread), or yours (Linux).
-    std::optional<bool> agreed = ge::request_consent("Acme");
-    if (!agreed) agreed = askWithMyOwnDialog();
-    if (!*agreed) return;
-
-    // 2. Start with the answer and the masks you already know.
     ge::Options o;
     o.embed_token = token;
     o.company = "Acme";
     o.window_id = myWindowId();                 // see "Capture"
     o.masks = {cardNumberRect()};               // see "Masking"
     try {
-        help = ge::Session::start(o, /*consent_granted=*/*agreed,
+        // 1. Ask: the library's consent step (on the UI thread), with a preview of exactly this.
+        ge::ConsentStepOptions c;
+        c.company = "Acme";
+        c.masked = true;
+        c.window_id = o.window_id;
+        c.masks = o.masks;
+        ge::ConsentDecision d = ge::consent(c);
+        if (d.decision == ge::ConsentOutcome::unavailable) d = askWithMyOwnDialog();  // then record_consent
+        if (!d.accepted()) return;
+
+        // 2. Start with the decision (its token, receipt and the customer's choices).
+        help = ge::Session::start(o, d,
             [this](const ge::Event& e) {
                 if (auto c = std::get_if<ge::CodeEvent>(&e)) showStatus("Support code " + c->code);
                 if (auto j = std::get_if<ge::JoinedEvent>(&e)) showStatus(j->agent.value_or("An agent") + " is viewing");
@@ -185,6 +190,48 @@ Your support team opens **Support** in the GaiaDesk console, sees the waiting cu
 (or types the nine-digit code).
 
 ## Consent
+
+### The consent step (recommended)
+
+Use the library's consent step, `consent(ConsentStepOptions)` / `gd_embed_consent`
+(libgaiadesk_embed 0.4.0), rather than `consent_granted = true` after a dialog of your own. It
+gives you, with no UI to build:
+
+- a **live preview** of exactly what support will see, masked fields already black;
+- **per-session choices** for the customer: allow click-and-type or keep it view-only, share app
+  logs, one window or the whole screen (each only when you offer it);
+- a **consent receipt** (who agreed to what, when, to which wording, hashed), stored on the
+  support session and shown in the console;
+- wording **localized** into 14 languages (or your own), and an **accessible** dialog: keyboard
+  only, Enter accepts, Esc declines, screen reader names, reduced motion. macOS, Windows and Linux
+  (X11 / XWayland).
+
+```cpp
+ge::ConsentStepOptions c;
+c.company = "Acme";
+c.guided = true;                                  // you want click-and-type; they may say no
+c.choices = ge::ConsentOffers{true, true, std::nullopt};   // offer guided, offer logs
+c.theme = ge::ConsentTheme{};
+c.theme->accent = "#0f766e";
+c.privacy_url = "https://acme.example/privacy";
+c.server = "https://gaiadesk.net"; c.embed_token = token; c.session_id = sessionId;  // the library posts the receipt
+auto r = ge::try_consent(c, [](const ge::Event& e) { /* ConsentShownEvent, ConsentAcceptedEvent / ConsentDeclinedEvent */ });
+if (!r) { /* bad_config (no dialog shown), wrong_thread (macOS) */ }
+else if (r->accepted()) help = ge::Session::start(o, *r, onEvent, post);
+// declined / timeout: the receipt says so and the request leaves the queue
+// unavailable: no dialog here, ask with your own UI and pass its answer to record_consent
+```
+
+`Session::start(options, decision, …)` is `start(apply_consent(options, decision), …)`: the
+decision's `consent_token` and `consent_receipt` go with the join, `capture` becomes the
+customer's and `guided` stays on only if they allowed it. `try_preview(c)` returns the same
+picture (`ConsentPreview`: PNG as base64, size, masked count) for a UI of your own;
+`record_consent(ConsentAnswer)` turns your own UI's answer (decision, choices, the strings you
+showed) into the same `ConsentDecision` and receipt. A session the consent step says no to ends
+with `customer_declined` or `consent_timeout`. From C: `gd_embed_consent(options_json, on_event,
+user_data)`, `gd_embed_preview`, `gd_embed_record_consent_ex` (see `gaiadesk_embed.h`).
+
+### Your own dialog
 
 `Session::start` / `gd_embed_start` take `consent_granted`: your user's answer to a consent dialog.
 The library refuses to start without it (`consent_required`), before it looks at anything else; in
@@ -315,7 +362,7 @@ deliver input to one app only.
 
 | C++ type | JSON (C) | |
 |---|---|---|
-| `StateEvent{state}` | `{"type":"state","state":…}` | `starting`, `waiting`, `connected`, `ended` |
+| `StateEvent{state, choices}` | `{"type":"state","state":…}` | `starting`, `waiting`, `connected`, `ended`; on `waiting`, `choices` is what the consent step let the session do (0.4.0) |
 | `CodeEvent{code, session_id, mode, expires_at}` | `{"type":"code",…}` | The session is up; `code` is the nine-digit support code; `mode` `view` or `cobrowse`; `expires_at` Unix seconds |
 | `JoinedEvent{agent}` | `{"type":"joined","agent":…}` | An agent joined (their email, or none) |
 | `LeftEvent` | `{"type":"left"}` | The agent left |
@@ -323,7 +370,10 @@ deliver input to one app only.
 | `ActionEvent{action, applied, reason}` | `{"type":"action",…}` | A guided request and its outcome |
 | `ErrorEvent{code, message}` | `{"type":"error",…}` | e.g. `capture_failed`, `connect_failed`, `indicator_unavailable` |
 | `IndicatorMovedEvent{x, y}` | `{"type":"indicator_moved","x":…,"y":…}` | The customer dragged the indicator: keep it for `indicator_origin` (0.3.0) |
-| `EndedEvent{reason}` | `{"type":"ended","reason":…}` | `stopped` (the customer), `app_stopped`, `customer_cancelled` (cancelled before an agent was admitted, 0.3.0), `disconnected`, `expired`, `error`. **Always last, exactly once** |
+| `ConsentShownEvent{locale, wording_version}` | `{"type":"consent_shown",…}` | `consent()`'s dialog is up (0.4.0; to `consent()`'s handler) |
+| `ConsentAcceptedEvent{choices}` | `{"type":"consent_accepted",…}` | The customer agreed (0.4.0) |
+| `ConsentDeclinedEvent{reason}` | `{"type":"consent_declined",…}` | `declined` or `timeout` (0.4.0) |
+| `EndedEvent{reason}` | `{"type":"ended","reason":…}` | `stopped` (the customer), `app_stopped`, `customer_cancelled` (cancelled before an agent was admitted, 0.3.0), `customer_declined` / `consent_timeout` (the consent step said no or timed out, 0.4.0), `disconnected`, `expired`, `error`. **Always last, exactly once** |
 | `UnknownEvent{type, json}` | | A type newer than this wrapper |
 
 `parse_event(json)` turns the C callback's JSON into an `Event`; `type_of(e)` gives its type name.

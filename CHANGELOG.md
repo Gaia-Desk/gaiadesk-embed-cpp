@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0
+
+- `libgaiadesk_embed` 0.4.0: the consent step (`gaiadesk/embed_consent.hpp`, included by
+  `gaiadesk/embed.hpp`). `consent(ConsentStepOptions, on_event)` / `try_consent` show the
+  library's dialog with a live preview of what support will see, per-session choices
+  (`ConsentOffers`), theme (`ConsentTheme`), locale and wording, and return a `ConsentDecision`
+  (`ConsentOutcome`, `ConsentChoices`, `consent_token`, `ConsentReceipt` with the library's JSON).
+  `preview` / `try_preview` return one frame (`ConsentPreview`); `record_consent(ConsentAnswer)` /
+  `try_record_consent` make your own UI's answer a receipt.
+- `Session::start` / `try_start` take a `ConsentDecision` (`apply_consent`), and
+  `Options::consent_token` / `consent_receipt`.
+- New events `ConsentShownEvent`, `ConsentAcceptedEvent`, `ConsentDeclinedEvent` (to
+  `consent()`'s handler); `StateEvent::choices` on `waiting`; new ended reasons
+  `customer_declined` and `consent_timeout`. `Event` gained three alternatives: an exhaustive
+  `std::visit` needs cases for them. `Capture` moved to `gaiadesk/embed_events.hpp` (same name).
+- The release archives carry the 0.4.0 C header (`gd_embed_consent`, `gd_embed_preview`,
+  `gd_embed_record_consent_ex`). The README recommends the consent step over
+  `consent_granted = true` after a dialog of your own. `show_consent` is unchanged.
+
 ## 0.3.0
 
 - `libgaiadesk_embed` 0.3.0: the consent dialog and indicator belong to the calling window.

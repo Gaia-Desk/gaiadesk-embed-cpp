@@ -50,7 +50,7 @@ int main(void) {
     none.on_event = NULL;
     none.user_data = NULL;
 
-    CHECK(strcmp(gd_embed_version(), "0.3.1") == 0);
+    CHECK(strcmp(gd_embed_version(), "0.4.0") == 0);
     CHECK(strstr(gd_embed_build_info(), "\"test_source\":false") != NULL);
 
     CHECK(refused_with("{\"embed_token\":\"" TOKEN "\",\"consent_granted\":false}", "consent_required"));
@@ -72,6 +72,26 @@ int main(void) {
     CHECK(strstr(gd_embed_last_error(), "bad_argument") != NULL);
     CHECK(gd_embed_set_paused(NULL, 1) == -1);
     gd_embed_stop(NULL); /* ignored */
+
+    /* The consent step (0.4.0): the symbols link, and refused options show no dialog. */
+    CHECK(gd_embed_consent("{\"no_such_option\":1}", on_event, NULL) == NULL);
+    CHECK(strstr(gd_embed_last_error(), "\"code\":\"bad_config\"") != NULL);
+    CHECK(gd_embed_consent("{\"theme\":{\"radius\":99}}", NULL, NULL) == NULL);
+    CHECK(strstr(gd_embed_last_error(), "\"code\":\"bad_config\"") != NULL);
+    CHECK(gd_embed_preview("{\"masks\":[{\"x\":0,\"y\":0,\"w\":-1,\"h\":1}]}") == NULL);
+    CHECK(strstr(gd_embed_last_error(), "\"code\":\"bad_config\"") != NULL);
+    CHECK(gd_embed_record_consent_ex("{\"decision\":\"maybe\"}") == NULL);
+    CHECK(strstr(gd_embed_last_error(), "\"code\":\"bad_config\"") != NULL);
+    {
+        const char *d = gd_embed_record_consent_ex(
+            "{\"decision\":\"declined\",\"choices\":{\"guided\":false,\"share_logs\":false,\"capture\":\"window\"},"
+            "\"wording\":{\"title\":\"Share?\"},\"company\":\"Acme\"}");
+        CHECK(d != NULL && strstr(d, "\"decision\":\"declined\"") != NULL && strstr(d, "\"surface\":\"embedded\"") != NULL);
+        CHECK(d != NULL && strstr(d, "consent_token") == NULL);
+    }
+    /* A receipt that is not one is refused at start. */
+    CHECK(refused_with("{\"embed_token\":\"" TOKEN "\",\"consent_granted\":true,\"consent_receipt\":{\"id\":\"x\"}}",
+                       "consent_required"));
 
     CHECK(events == 0);
     printf("%s (%d failures)\n", failures ? "FAIL" : "ok", failures);
